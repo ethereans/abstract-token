@@ -1,7 +1,7 @@
 pragma solidity ^0.4.0;
 
 /**
- * WrappedEthToken is a DelegativeVoteToken
+ * WrappedEthToken is a contract that creates 1 token por eth deposited.
  * 
  * By Ricardo Guilherme Schmidt
  * Released under GPLv3 License
