@@ -49,17 +49,20 @@ contract AbstractToken is Token {
     function mint(address _to, uint256 _value)
      safe_add(totalSupply, _value) 
      internal {
+        Mint(_to, _value);
         totalSupply += _value;
         accounts[_to].balance += _value;   
-        Mint(_to, _value);
     }
     
     // remove tokens from a balance    
     function destroy(address _from, uint256 _value)
      internal {
+        Destroy(_from, _value);
         totalSupply -= _value;
         accounts[_from].balance -= _value;   
-        Destroy(_from, _value);
+        if(accounts[_from].balance == 0){ 
+            delete accounts[_from].balance; //to reduce gas in mapping accounts
+        }
     }
     
     // balance of a specific address
