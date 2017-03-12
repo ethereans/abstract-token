@@ -1,7 +1,7 @@
 {
   "contracts": "contracts",
   
-  "deploy": ["WrappedEthToken"],
+  "deploy": ["JustifiedCollaborationToken"],
   "plugins": {
     "oraclize": {
       "networkID": 161,
