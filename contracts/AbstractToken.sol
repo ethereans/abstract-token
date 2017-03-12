@@ -93,11 +93,11 @@ contract AbstractToken is Token {
         return true;
     }
 
-    // approve allowances
-    function approve(address _spender, uint256 _value) 
+    // set allowance
+    function approve(address _spender, uint256 _totalAllowed) 
      returns (bool) {
-        Approval(msg.sender, _spender, _value);
-        accounts[msg.sender].allowanceOf[_spender] += _value;
+        Approval(msg.sender, _spender, _totalAllowed);
+        accounts[msg.sender].allowanceOf[_spender] = _totalAllowed;
         return true;
     }
 
