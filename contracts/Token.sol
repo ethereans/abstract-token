@@ -4,8 +4,8 @@ pragma solidity ^0.4.8;
 
 contract Token {
   uint256 public totalSupply;
-  function balanceOf(address who) constant returns (uint);
-  function allowance(address owner, address spender) constant returns (uint);
+  function balanceOf(address who) constant returns (uint256);
+  function allowance(address owner, address spender) constant returns (uint256);
   function transfer(address to, uint256 value) returns (bool ok);
   function transferFrom(address from, address to, uint256 value) returns (bool ok);
   function approve(address spender, uint256 value) returns (bool ok);

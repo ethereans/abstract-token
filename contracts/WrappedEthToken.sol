@@ -10,7 +10,6 @@ pragma solidity ^0.4.0;
 import "./AbstractToken.sol";
 
 contract WrappedEthToken is AbstractToken {
- uint8 constant public base = 18;
 
  //Minting is by depositing in the contract
  function () 

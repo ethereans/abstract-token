@@ -12,74 +12,139 @@ import "./Token.sol";
 
 // AbstractToken, ECR20 tokens that all belong to the owner for sending around
 contract AbstractToken is Token {
-    // the base, tokens denoted in micros
-    uint256 constant public base = 0;
-
-    // storage and mapping of all balances & allowances
+    
+    uint256 private decimalBase = 0;
+    mapping (bytes => bytes) private attributes;
     mapping (address => Account) private accounts; 
-
+    event Base(uint256 decimalBase);
+    event SetAttribute(string name, string value);
     event Mint(address to, uint256 value);
     event Destroy(address from, uint256 value);
     
-    // this is as basic as can be, only the associated balance & allowances
-    struct Account {
-        uint256 balance;
-        mapping (address => uint256) allowanceOf;
+    
+    struct Decimal {
+        uint256 value;
+        uint256 base;
     }
-
+    
+    struct Account {
+        Decimal balance;
+        mapping (address => Decimal) allowanceOf;
+    }
+    
     // the balance should be available
     modifier when_owns(address _owner, uint256 _amount) {
-        if (accounts[_owner].balance < _amount) throw;
+        if (balanceOf(_owner) < _amount) throw;
         _;
     }
 
     // an allowance should be available
     modifier when_has_allowance(address _owner, address _spender, uint256 _amount) {
-        if (accounts[_owner].allowanceOf[_spender] < _amount) throw;
+        if (allowance(_owner,_spender) < _amount) throw;
         _;
     }
+
+    //correct base and balance if needed    
+    function _safeDecimals(Decimal _decimal) 
+     internal
+     constant returns(Decimal){
+        if(_decimal.base != decimalBase) { 
+            if(_decimal.value > 0){
+                int256 baseDiff = int256(_decimal.base) - int256(decimalBase); 
+                if(baseDiff > 0){
+                    _decimal.value *= 10**uint256(baseDiff);
+                }else if(baseDiff < 0){
+                    uint256 oldv = _decimal.value;
+                    uint256 newv = _decimal.value/(10**uint256(baseDiff*-1));
+                    _decimal.value = oldv > newv ? newv : 0; 
+                }
+            }
+            _decimal.base = decimalBase; //update base of account
+        }
+        return _decimal;
+    }
     
-    // A helper to notify if overflow occurs
-    modifier safe_add(uint256 a, uint256 b)  {
-        if (a + b < a && a + b < b) throw;
-        _;
+    //_safeDecimals wrapper for safe add;
+    function _safeDecimalsAdd(Decimal _decimal, uint256 _value) 
+     internal
+     constant returns(Decimal){
+        _decimal = _safeDecimals(_decimal);
+        _decimal.value += _value;
+        return _decimal;
+    }
+    
+    function _safeDecimalsSub(Decimal _decimal, uint256 _value) 
+     internal
+     constant returns(Decimal){
+        _decimal = _safeDecimals(_decimal);
+        _decimal.value -= _value;
+        return _decimal;
     } 
+   //_safeDecimals wrapper for safe sub;
+    function base() 
+     constant returns(uint256) { 
+        return decimalBase;
+    }
     
+    /**
+     * changes the decimal base
+     * lowereing base remove precision of most significant digits
+     * rising base remove precision of last significant digits
+     */
+    function setDecimalBase(uint256 _decimalBase)
+     internal {
+        Base(_decimalBase);
+        decimalBase = _decimalBase;
+    }
+    
+    //sets attributes for wallet usage
+    function setAttribute(string _name, string _value)
+     internal {
+        SetAttribute(_name,_value);
+        if (bytes(_value).length > 0) attributes[bytes(_name)] = bytes(_value);
+        else delete attributes[bytes(_name)];
+    }
+    
+    //read an attribute from storage
+    function getAttribute(string _name)
+     constant returns (string){
+        return string(attributes[bytes(_name)]);
+    }
+
     // add tokens to a balance
     function mint(address _to, uint256 _value)
-     safe_add(totalSupply, _value) 
      internal {
+        if (totalSupply + _value < totalSupply) throw; //overflow: maximum totalSupply in the current base;
         Mint(_to, _value);
         totalSupply += _value;
-        accounts[_to].balance += _value;   
+        accounts[_to].balance = _safeDecimalsAdd(accounts[_to].balance,_value);   
     }
-    
+
     // remove tokens from a balance    
     function destroy(address _from, uint256 _value)
      internal {
         Destroy(_from, _value);
         totalSupply -= _value;
-        accounts[_from].balance -= _value;   
-        if(accounts[_from].balance == 0){ 
-            delete accounts[_from].balance; //to reduce gas in mapping accounts
+        accounts[_from].balance = _safeDecimalsSub(accounts[_from].balance,_value);   
+        if(accounts[_from].balance.value == 0){ 
+            delete accounts[_from]; //to reduce gas in mapping accounts
         }
     }
-    
+
     // balance of a specific address
     function balanceOf(address _who) 
      constant 
      returns (uint256) {
-        return accounts[_who].balance;
+        return _safeDecimals(accounts[_who].balance).value;
     }
 
     // transfer
     function transfer(address _to, uint256 _value) 
      when_owns(msg.sender, _value) 
-     safe_add(accounts[_to].balance, _value) 
      returns (bool) {
         Transfer(msg.sender, _to, _value);
-        accounts[msg.sender].balance -= _value;
-        accounts[_to].balance += _value;
+        accounts[msg.sender].balance = _safeDecimalsSub(accounts[msg.sender].balance, _value);
+        accounts[_to].balance = _safeDecimalsAdd(accounts[_to].balance, _value);
         return true;
     }
 
@@ -87,12 +152,11 @@ contract AbstractToken is Token {
     function transferFrom(address _from, address _to, uint256 _value) 
      when_owns(_from, _value) 
      when_has_allowance(_from, msg.sender, _value) 
-     safe_add(accounts[_to].balance, _value)
      returns (bool) {
         Transfer(_from, _to, _value);
-        accounts[_from].allowanceOf[msg.sender] -= _value;
-        accounts[_from].balance -= _value;
-        accounts[_to].balance += _value;
+        accounts[_from].allowanceOf[msg.sender] = _safeDecimalsSub(accounts[_from].allowanceOf[msg.sender], _value);
+        accounts[_from].balance = _safeDecimalsSub(accounts[msg.sender].balance, _value);
+        accounts[_to].balance = _safeDecimalsAdd(accounts[_to].balance, _value);
         return true;
     }
 
@@ -100,7 +164,11 @@ contract AbstractToken is Token {
     function approve(address _spender, uint256 _totalAllowed) 
      returns (bool) {
         Approval(msg.sender, _spender, _totalAllowed);
-        accounts[msg.sender].allowanceOf[_spender] = _totalAllowed;
+        accounts[msg.sender].allowanceOf[_spender].value = _totalAllowed;
+        accounts[msg.sender].allowanceOf[_spender].base = decimalBase;
+        if(_totalAllowed == 0){ 
+            delete accounts[msg.sender].allowanceOf[_spender]; //lower gas in interactions
+        }
         return true;
     }
 
@@ -108,7 +176,7 @@ contract AbstractToken is Token {
     function allowance(address _owner, address _spender) 
      constant 
      returns (uint256) {
-        return accounts[_owner].allowanceOf[_spender];
+        return _safeDecimals(accounts[_owner].allowanceOf[_spender]).value;
     }
 
 }
