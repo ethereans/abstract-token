@@ -80,10 +80,16 @@ contract AbstractToken is Token {
         _decimal.value -= _value;
         return _decimal;
     } 
-   //_safeDecimals wrapper for safe sub;
+    //_safeDecimals wrapper for safe sub;
     function base() 
      constant returns(uint256) { 
         return decimalBase;
+    }
+    
+    //child may override this function to trigger changes in balance dependent storage
+    function _balanceUpdated(address _from) 
+     internal {
+        
     }
     
     /**
@@ -117,7 +123,8 @@ contract AbstractToken is Token {
         if (totalSupply + _value < totalSupply) throw; //overflow: maximum totalSupply in the current base;
         Mint(_to, _value);
         totalSupply += _value;
-        accounts[_to].balance = _safeDecimalsAdd(accounts[_to].balance,_value);   
+        accounts[_to].balance = _safeDecimalsAdd(accounts[_to].balance,_value); 
+        _balanceUpdated(_to);
     }
 
     // remove tokens from a balance    
@@ -129,6 +136,7 @@ contract AbstractToken is Token {
         if(accounts[_from].balance.value == 0){ 
             delete accounts[_from]; //to reduce gas in mapping accounts
         }
+        _balanceUpdated(_from);
     }
 
     // balance of a specific address
@@ -145,6 +153,8 @@ contract AbstractToken is Token {
         Transfer(msg.sender, _to, _value);
         accounts[msg.sender].balance = _safeDecimalsSub(accounts[msg.sender].balance, _value);
         accounts[_to].balance = _safeDecimalsAdd(accounts[_to].balance, _value);
+        _balanceUpdated(msg.sender);
+        _balanceUpdated(_to);
         return true;
     }
 
@@ -157,6 +167,8 @@ contract AbstractToken is Token {
         accounts[_from].allowanceOf[msg.sender] = _safeDecimalsSub(accounts[_from].allowanceOf[msg.sender], _value);
         accounts[_from].balance = _safeDecimalsSub(accounts[msg.sender].balance, _value);
         accounts[_to].balance = _safeDecimalsAdd(accounts[_to].balance, _value);
+        _balanceUpdated(_from);
+        _balanceUpdated(_to);
         return true;
     }
 
